@@ -4,6 +4,7 @@
   const STORAGE_KEY = "yinbox-vault-v1";
   const KDF_ITERATIONS = 600000;
   const AUTO_LOCK_MS = 5 * 60 * 1000;
+  const CLOUD_ENDPOINT = "/api/vault";
 
   const icons = {
     eye: '<svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>',
@@ -31,6 +32,7 @@
   const state = {
     key: null,
     data: null,
+    remoteData: null,
     envelope: null,
     filter: "all",
     search: "",
@@ -42,6 +44,70 @@
     lockUntil: 0,
     toastTimer: null
   };
+
+  function setSyncStatus(label, mode = "online") {
+    const status = $('#syncStatus');
+    if (!status) return;
+    const text = $('b', status);
+    if (text) text.textContent = label;
+    status.dataset.mode = mode;
+  }
+
+  function validRemoteData(value) {
+    return Boolean(value && Array.isArray(value.items));
+  }
+
+  async function authenticateRemote(password) {
+    try {
+      const response = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (response.status === 401) throw new Error('REMOTE_PASSWORD');
+      if (!response.ok) throw new Error('REMOTE_UNAVAILABLE');
+      return true;
+    } catch (error) {
+      if (error.message === 'REMOTE_PASSWORD') throw error;
+      return false;
+    }
+  }
+
+  async function loadRemoteData() {
+    setSyncStatus('连接 R2…', 'syncing');
+    try {
+      const response = await fetch(CLOUD_ENDPOINT, { cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (response.status === 404) {
+        setSyncStatus('等待首次同步', 'local');
+        return;
+      }
+      if (!response.ok) throw new Error(`sync ${response.status}`);
+      const remote = await response.json();
+      if (!validRemoteData(remote)) throw new Error('invalid remote data');
+      state.remoteData = remote;
+      setSyncStatus('R2 已同步', 'online');
+    } catch {
+      setSyncStatus('仅本地模式', 'local');
+    }
+  }
+
+  async function syncData() {
+    if (!state.data) return false;
+    setSyncStatus('正在同步…', 'syncing');
+    try {
+      const response = await fetch(CLOUD_ENDPOINT, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state.data)
+      });
+      if (!response.ok) throw new Error(`sync ${response.status}`);
+      setSyncStatus('R2 已同步', 'online');
+      return true;
+    } catch {
+      setSyncStatus('仅本地模式', 'local');
+      return false;
+    }
+  }
 
   function initIcons() {
     $$('[data-icon]').forEach((node) => {
@@ -111,8 +177,9 @@
     if (!state.key || !state.data || !state.envelope) return;
     state.data.updatedAt = new Date().toISOString();
     const encrypted = await encryptData(state.data, state.key);
-    state.envelope = { ...state.envelope, ...encrypted };
+    state.envelope = { ...state.envelope, ...encrypted, savedAt: new Date().toISOString() };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.envelope));
+    await syncData();
   }
 
   function passwordStrength(password) {
@@ -135,27 +202,34 @@
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const key = await deriveKey(password, salt);
     const now = new Date().toISOString();
-    const data = { items: [], createdAt: now, updatedAt: now };
+    const data = validRemoteData(state.remoteData)
+      ? state.remoteData
+      : { version: 1, items: [], createdAt: now, updatedAt: now };
     const encrypted = await encryptData(data, key);
     const envelope = {
       version: 1,
       kdf: "PBKDF2-SHA256",
       iterations: KDF_ITERATIONS,
       salt: bytesToBase64(salt),
+      savedAt: now,
       ...encrypted
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(envelope));
     state.key = key;
     state.data = data;
     state.envelope = envelope;
+    await syncData();
   }
 
   async function unlockVault(password) {
     const envelope = readEnvelope();
     if (!envelope) throw new Error("保险箱数据无效，请导入有效备份");
     const key = await deriveKey(password, base64ToBytes(envelope.salt), envelope.iterations || KDF_ITERATIONS);
-    const data = await decryptData(envelope, key);
+    let data = await decryptData(envelope, key);
     if (!data || !Array.isArray(data.items)) throw new Error("保险箱数据格式无效");
+    const remoteTime = Date.parse(state.remoteData?.updatedAt || '') || 0;
+    const localTime = Date.parse(data.updatedAt || '') || 0;
+    if (validRemoteData(state.remoteData) && remoteTime > localTime) data = state.remoteData;
     state.key = key;
     state.data = data;
     state.envelope = envelope;
@@ -182,6 +256,7 @@
     $('#unlockPanel').hidden = false;
     $('#setupPanel').hidden = true;
     $('#unlockPassword').focus();
+    void fetch('/api/session', { method: 'DELETE' }).catch(() => {});
     if (showMessage) $('#unlockError').textContent = "因长时间无操作，保险箱已自动锁定";
   }
 
@@ -264,11 +339,20 @@
     $('#emptyState').hidden = items.length !== 0;
     grid.hidden = items.length === 0;
     items.forEach((item) => grid.append(createCard(item)));
+    if (items.length) {
+      if (!items.some((item) => item.id === state.detailId)) state.detailId = items[0].id;
+      openDetail(state.detailId);
+    } else {
+      state.detailId = null;
+      $('#detailEmpty').hidden = false;
+      $('#detailContent').hidden = true;
+    }
   }
 
   function createCard(item) {
     const card = document.createElement('article');
-    card.className = 'vault-card';
+    card.className = `vault-card${item.id === state.detailId ? ' selected' : ''}`;
+    card.dataset.itemId = item.id;
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
     card.setAttribute('aria-label', `查看 ${item.title}`);
@@ -277,8 +361,8 @@
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openDetail(item.id); }
     });
 
-    const top = document.createElement('div');
-    top.className = 'card-top';
+    const selector = document.createElement('span');
+    selector.className = 'item-select';
     const avatar = document.createElement('div');
     avatar.className = `item-avatar${item.type === 'note' ? ' note-avatar' : ''}`;
     avatar.textContent = item.type === 'note' ? '✦' : (item.title.trim()[0] || '#');
@@ -289,52 +373,17 @@
     const sub = document.createElement('p');
     sub.textContent = item.type === 'account' ? (item.url ? displayHost(item.url) : '账户密码') : '私密备忘';
     titleBox.append(title, sub);
-    const favorite = document.createElement('button');
-    favorite.className = `icon-button favorite-button${item.favorite ? ' active' : ''}`;
-    favorite.type = 'button';
-    favorite.setAttribute('aria-label', item.favorite ? '取消星标' : '添加星标');
-    favorite.innerHTML = icons.star;
-    favorite.addEventListener('click', async (event) => {
-      event.stopPropagation();
-      item.favorite = !item.favorite;
-      item.updatedAt = new Date().toISOString();
-      await saveVault();
-      renderItems();
-    });
-    top.append(avatar, titleBox, favorite);
-
-    const main = document.createElement('div');
-    main.className = 'card-main';
-    if (item.type === 'account') {
-      const user = document.createElement('p');
-      user.textContent = item.username || '未填写账号';
-      const password = document.createElement('p');
-      password.className = 'masked';
-      password.textContent = item.password ? '••••••••••' : '未填写密码';
-      main.append(user, password);
-    } else {
-      const notes = document.createElement('p');
-      notes.className = 'note-preview';
-      notes.textContent = item.notes || '暂无内容';
-      main.append(notes);
+    const meta = document.createElement('span');
+    meta.className = 'card-meta';
+    meta.textContent = formatDate(item.updatedAt);
+    card.append(selector, avatar, titleBox);
+    if (item.favorite) {
+      const favorite = document.createElement('span');
+      favorite.className = 'favorite-indicator';
+      favorite.innerHTML = icons.star;
+      card.append(favorite);
     }
-
-    const footer = document.createElement('div');
-    footer.className = 'card-footer';
-    const updated = document.createElement('span');
-    updated.textContent = formatDate(item.updatedAt);
-    footer.append(updated);
-    if (item.type === 'account') {
-      const actions = document.createElement('div');
-      actions.style.display = 'flex';
-      actions.style.gap = '14px';
-      if (item.username) actions.append(makeQuickCopyButton('复制账号', item.username));
-      if (item.password) actions.append(makeQuickCopyButton('复制密码', item.password));
-      footer.append(actions);
-    } else {
-      footer.append(makeQuickCopyButton('复制内容', item.notes || ''));
-    }
-    card.append(top, main, footer);
+    card.append(meta);
     return card;
   }
 
@@ -453,17 +502,32 @@
     const item = state.data.items.find((entry) => entry.id === id);
     if (!item) return;
     state.detailId = id;
+    $$('.vault-card').forEach((card) => card.classList.toggle('selected', card.dataset.itemId === item.id));
+    $('#detailEmpty').hidden = true;
+    $('#detailContent').hidden = false;
     $('#detailType').textContent = item.type === 'account' ? '账户密码' : '私密备忘';
     $('#detailTitle').textContent = item.title;
-    const body = $('#detailBody');
-    body.replaceChildren();
-    if (item.type === 'account') {
-      addDetailRow(body, '登录网址', item.url, { link: true });
-      addDetailRow(body, '用户名 / 邮箱', item.username, { showEmpty: true });
-      addDetailRow(body, '密码', item.password, { masked: true, showEmpty: true });
-    }
-    addDetailRow(body, '备注', item.notes, { notes: true, showEmpty: true });
-    $('#detailDialog').showModal();
+    $('#detailHost').textContent = item.type === 'account' ? (item.url ? displayHost(item.url) : '未填写网站') : '加密备忘录';
+    $('#detailAvatar').textContent = item.type === 'note' ? '✦' : (item.title.trim()[0] || '#');
+    $('#detailAvatar').classList.toggle('note-avatar', item.type === 'note');
+    $('#detailFavoriteButton').classList.toggle('active', Boolean(item.favorite));
+    $('#detailFavoriteButton').setAttribute('aria-label', item.favorite ? '取消星标' : '添加星标');
+    $('#loginSection').hidden = item.type !== 'account';
+    $('#websiteSection').hidden = item.type !== 'account' || !item.url;
+    $('#detailUsername').textContent = item.username || '未填写';
+    $('#detailPassword').textContent = item.password ? '••••••••••••' : '未填写';
+    $('#detailPassword').dataset.visible = 'false';
+    $('#revealPasswordButton').innerHTML = `${icons.eye}<span>显示</span>`;
+    $('#revealPasswordButton').disabled = !item.password;
+    $('#copyUsernameButton').disabled = !item.username;
+    $('#copyPasswordButton').disabled = !item.password;
+    $('#detailUrl').textContent = item.url || '';
+    $('#openWebsiteButton').href = item.url || '#';
+    $('#copyUrlButton').disabled = !item.url;
+    $('#detailNotes').textContent = item.notes || '';
+    const created = new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false });
+    const updated = new Date(item.updatedAt).toLocaleString('zh-CN', { hour12: false });
+    $('#detailHistory').textContent = `创建于：${created}\n最后编辑：${updated}`;
   }
 
   function closeDialog(id) {
@@ -495,6 +559,7 @@
     };
     if (existing) Object.assign(existing, item);
     else state.data.items.push(item);
+    state.detailId = item.id;
     await saveVault();
     closeDialog('itemDialog');
     renderItems();
@@ -548,7 +613,9 @@
       const raw = await file.text();
       const value = JSON.parse(raw);
       if (value.version !== 1 || !value.salt || !value.iv || !value.ciphertext) throw new Error();
+      value.savedAt = new Date().toISOString();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+      state.envelope = value;
       lockVault();
       $('#unlockError').textContent = '备份已导入，请使用该备份的主密码解锁';
     } catch {
@@ -578,11 +645,15 @@
       const button = $('#setupButton');
       setBusy(button, true, '正在创建加密保险箱…');
       try {
+        const remoteAvailable = await authenticateRemote(password);
+        if (remoteAvailable) await loadRemoteData();
         await createVault(password);
         $('#setupForm').reset();
         showApp();
-      } catch {
-        $('#setupError').textContent = '创建失败，请确认浏览器支持 Web Crypto';
+      } catch (error) {
+        $('#setupError').textContent = error.message === 'REMOTE_PASSWORD'
+          ? '访问密码不正确，请使用 Cloudflare 中设置的密码'
+          : '创建失败，请检查网络或浏览器支持';
       } finally {
         setBusy(button, false);
       }
@@ -598,8 +669,12 @@
       $('#unlockError').textContent = '';
       setBusy(button, true, '正在解密…');
       try {
-        await unlockVault(password);
+        const remoteAvailable = await authenticateRemote(password);
+        if (remoteAvailable) await loadRemoteData();
+        if (readEnvelope()) await unlockVault(password);
+        else await createVault(password);
         showApp();
+        void syncData();
       } catch (error) {
         state.failedUnlocks++;
         if (state.failedUnlocks >= 5) {
@@ -607,7 +682,9 @@
           state.lockUntil = Date.now() + delay * 1000;
           $('#unlockError').textContent = `密码错误，已暂停尝试 ${delay} 秒`;
         } else {
-          $('#unlockError').textContent = '主密码不正确，请重试';
+          $('#unlockError').textContent = error.message === 'REMOTE_PASSWORD'
+            ? '访问密码不正确，请重试'
+            : '主密码不正确，请重试';
         }
         $('#unlockPassword').select();
       } finally {
@@ -658,6 +735,36 @@
     $('#emptyAddButton').addEventListener('click', () => openItemDialog(null, state.filter === 'note' ? 'note' : 'account'));
     $('#itemForm').addEventListener('submit', handleItemSubmit);
     $('#generateButton').addEventListener('click', generatePassword);
+    $('#copyUsernameButton').addEventListener('click', () => {
+      const item = state.data.items.find((entry) => entry.id === state.detailId);
+      if (item?.username) copyText(item.username, '账号已复制');
+    });
+    $('#copyPasswordButton').addEventListener('click', () => {
+      const item = state.data.items.find((entry) => entry.id === state.detailId);
+      if (item?.password) copyText(item.password, '密码已复制');
+    });
+    $('#copyUrlButton').addEventListener('click', () => {
+      const item = state.data.items.find((entry) => entry.id === state.detailId);
+      if (item?.url) copyText(item.url, '网址已复制');
+    });
+    $('#revealPasswordButton').addEventListener('click', () => {
+      const item = state.data.items.find((entry) => entry.id === state.detailId);
+      if (!item?.password) return;
+      const value = $('#detailPassword');
+      const visible = value.dataset.visible === 'true';
+      value.dataset.visible = String(!visible);
+      value.textContent = visible ? '••••••••••••' : item.password;
+      $('#revealPasswordButton').innerHTML = `${visible ? icons.eye : icons.eyeOff}<span>${visible ? '显示' : '隐藏'}</span>`;
+    });
+    $('#detailFavoriteButton').addEventListener('click', async () => {
+      const item = state.data.items.find((entry) => entry.id === state.detailId);
+      if (!item) return;
+      item.favorite = !item.favorite;
+      item.updatedAt = new Date().toISOString();
+      await saveVault();
+      renderItems();
+      showToast(item.favorite ? '已加入星标' : '已取消星标');
+    });
     $('#detailEditButton').addEventListener('click', () => {
       const item = state.data.items.find((entry) => entry.id === state.detailId);
       closeDialog('detailDialog');
@@ -669,27 +776,23 @@
     $('#backupButton').addEventListener('click', downloadBackup);
     $('#importButton').addEventListener('click', () => $('#importInput').click());
     $('#importInput').addEventListener('change', (event) => event.target.files[0] && importBackup(event.target.files[0]));
-    $('#menuButton').addEventListener('click', () => {
-      $('.sidebar').classList.add('open');
-      $('#sidebarBackdrop').classList.add('show');
-    });
-    $('#sidebarBackdrop').addEventListener('click', closeSidebar);
     ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach((name) => document.addEventListener(name, resetAutoLock, { passive: true }));
   }
 
   function closeSidebar() {
-    $('.sidebar').classList.remove('open');
-    $('#sidebarBackdrop').classList.remove('show');
+    $('.sidebar')?.classList.remove('open');
+    $('#sidebarBackdrop')?.classList.remove('show');
   }
 
-  function initialize() {
+  async function initialize() {
     initIcons();
     bindEvents();
+    setSyncStatus('等待登录', 'local');
     const hasVault = Boolean(localStorage.getItem(STORAGE_KEY));
     $('#unlockPanel').hidden = !hasVault;
     $('#setupPanel').hidden = hasVault;
     if (!hasVault) $('#setupPassword').focus();
   }
 
-  initialize();
+  void initialize();
 })();

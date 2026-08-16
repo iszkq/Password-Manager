@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#07110f" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f6f8fc" />
     <meta name="description" content="一个轻量、仅在浏览器本地解密的加密密码与备忘录保险箱。" />
     <title>隐匣 · 私密保险箱</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./light.css" />
   </head>
   <body>
     <div class="ambient ambient-one"></div>
@@ -51,9 +51,9 @@
 
         <div id="setupPanel" hidden>
           <div class="auth-heading">
-            <p class="eyebrow">初次使用</p>
-            <h1>创建你的保险箱</h1>
-            <p>设置一个不少于 12 位且容易记住的主密码。忘记后将无法找回。</p>
+            <p class="eyebrow">首次连接</p>
+            <h1>连接或创建保险箱</h1>
+            <p>输入 Cloudflare 中设置的访问密码。已有 R2 数据时会自动载入，没有数据时会创建新保险箱。</p>
           </div>
           <form id="setupForm" novalidate>
             <label class="field-label" for="setupPassword">主密码</label>
@@ -77,83 +77,85 @@
     </main>
 
     <main id="appView" class="app-view" hidden>
-      <aside class="sidebar">
-        <div class="brand sidebar-brand">
+      <header class="global-header">
+        <div class="brand header-brand">
           <div class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="M8 10V7a4 4 0 0 1 8 0v3m-9 0h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"/><path d="M12 14v3"/></svg>
           </div>
-          <div>
-            <span class="brand-name">隐匣</span>
-            <span class="brand-tagline">PRIVATE VAULT</span>
-          </div>
+          <div><span class="brand-name">隐匣</span><span class="brand-tagline">PRIVATE VAULT</span></div>
         </div>
-
-        <nav class="sidebar-nav" aria-label="保险箱分类">
-          <button class="nav-item active" data-filter="all">
-            <span class="nav-icon" data-icon="grid"></span>
-            <span>全部项目</span>
-            <span id="allCount" class="nav-count">0</span>
-          </button>
-          <button class="nav-item" data-filter="account">
-            <span class="nav-icon" data-icon="key"></span>
-            <span>账户密码</span>
-            <span id="accountCount" class="nav-count">0</span>
-          </button>
-          <button class="nav-item" data-filter="note">
-            <span class="nav-icon" data-icon="note"></span>
-            <span>私密备忘</span>
-            <span id="noteCount" class="nav-count">0</span>
-          </button>
-          <button class="nav-item" data-filter="favorite">
-            <span class="nav-icon" data-icon="star"></span>
-            <span>星标收藏</span>
-            <span id="favoriteCount" class="nav-count">0</span>
-          </button>
-        </nav>
-
-        <div class="sidebar-bottom">
-          <button id="backupButton" class="sidebar-action"><span data-icon="download"></span>导出加密备份</button>
-          <button id="importButton" class="sidebar-action"><span data-icon="upload"></span>导入备份</button>
+        <div class="header-actions">
+          <div id="syncStatus" class="online-pill"><span></span><b>连接云端</b></div>
+          <div class="vault-identity"><span data-icon="key"></span><span>我的保险箱</span></div>
+          <button id="backupButton" class="header-button"><span data-icon="download"></span>备份</button>
+          <button id="importButton" class="header-button"><span data-icon="upload"></span>导入</button>
           <input id="importInput" type="file" accept="application/json,.json" hidden />
-          <button id="lockButton" class="sidebar-action"><span data-icon="lock"></span>立即锁定</button>
-          <div class="security-status"><span></span><div><strong>保险箱已加密</strong><small>5 分钟无操作自动锁定</small></div></div>
+          <button id="lockButton" class="header-button strong"><span data-icon="lock"></span>锁定</button>
         </div>
-      </aside>
+      </header>
 
-      <section class="workspace">
-        <header class="topbar">
-          <button id="menuButton" class="icon-button menu-button" aria-label="打开菜单"><span data-icon="menu"></span></button>
+      <section class="vault-shell">
+        <div class="vault-toolbar">
           <div class="search-wrap">
             <span data-icon="search"></span>
-            <input id="searchInput" type="search" placeholder="搜索账户、网址或备忘录…" autocomplete="off" />
+            <input id="searchInput" type="search" placeholder="在保险箱中搜索…" autocomplete="off" />
             <kbd>⌘ K</kbd>
           </div>
-          <button id="addButton" class="primary-button add-button"><span data-icon="plus"></span>新建项目</button>
-        </header>
+          <nav class="filter-tabs" aria-label="保险箱分类">
+            <button class="nav-item active" data-filter="all">全部 <span id="allCount" class="nav-count">0</span></button>
+            <button class="nav-item" data-filter="account">账户 <span id="accountCount" class="nav-count">0</span></button>
+            <button class="nav-item" data-filter="note">备忘 <span id="noteCount" class="nav-count">0</span></button>
+            <button class="nav-item" data-filter="favorite">星标 <span id="favoriteCount" class="nav-count">0</span></button>
+          </nav>
+          <button id="addButton" class="primary-button add-button"><span data-icon="plus"></span><b>新建</b></button>
+        </div>
 
-        <div class="content">
-          <div class="page-heading">
-            <div>
-              <p class="eyebrow">我的保险箱</p>
-              <h1 id="listTitle">全部项目</h1>
-              <p id="listSubtitle">集中管理你的账户与私密信息</p>
+        <div class="vault-split">
+          <section class="vault-list-pane">
+            <div class="list-heading">
+              <div><h1 id="listTitle">全部项目</h1><p id="listSubtitle">集中管理你的账户与私密信息</p></div>
+              <span class="encryption-note"><span data-icon="lock"></span>已加密</span>
             </div>
-            <div class="view-controls" role="group" aria-label="视图切换">
-              <button class="icon-button active" data-view="grid" aria-label="网格视图"><span data-icon="grid"></span></button>
-              <button class="icon-button" data-view="list" aria-label="列表视图"><span data-icon="list"></span></button>
-            </div>
-          </div>
-
-          <div id="itemGrid" class="item-grid"></div>
-          <section id="emptyState" class="empty-state" hidden>
-            <div class="empty-icon"><span data-icon="key"></span></div>
-            <h2>保险箱还是空的</h2>
-            <p>添加第一个账户或备忘录，它会立即在本地加密保存。</p>
-            <button id="emptyAddButton" class="secondary-button"><span data-icon="plus"></span>添加项目</button>
+            <div id="itemGrid" class="item-grid"></div>
+            <section id="emptyState" class="empty-state" hidden>
+              <div class="empty-icon"><span data-icon="key"></span></div>
+              <h2>保险箱还是空的</h2>
+              <p>添加第一个账户或备忘录，它会立即在本地加密保存。</p>
+              <button id="emptyAddButton" class="secondary-button"><span data-icon="plus"></span>添加项目</button>
+            </section>
           </section>
+
+          <aside id="detailPane" class="detail-pane">
+            <div id="detailEmpty" class="detail-empty">
+              <div class="detail-empty-icon"><span data-icon="key"></span></div>
+              <h2>选择一个项目</h2>
+              <p>在左侧选择账户或备忘录，这里会显示完整信息。</p>
+            </div>
+            <div id="detailContent" hidden>
+              <div class="detail-hero">
+                <div id="detailAvatar" class="detail-avatar">#</div>
+                <div><p id="detailType" class="detail-kicker">账户密码</p><h2 id="detailTitle"></h2><p id="detailHost"></p></div>
+                <button id="detailFavoriteButton" class="icon-button detail-star" type="button" aria-label="添加星标"><span data-icon="star"></span></button>
+              </div>
+
+              <section id="loginSection" class="detail-section">
+                <h3>登录信息</h3>
+                <div class="info-row"><span class="info-label">用户名</span><strong id="detailUsername"></strong><button id="copyUsernameButton" class="outline-button" type="button"><span data-icon="copy"></span>复制</button></div>
+                <div class="info-row"><span class="info-label">密码</span><strong id="detailPassword" class="password-value">••••••••••••</strong><div class="row-actions"><button id="revealPasswordButton" class="outline-button" type="button"><span data-icon="eye"></span>显示</button><button id="copyPasswordButton" class="outline-button" type="button"><span data-icon="copy"></span>复制</button></div></div>
+              </section>
+
+              <section id="websiteSection" class="detail-section">
+                <h3>登录网站</h3>
+                <div class="info-row"><span class="info-label">网址</span><strong id="detailUrl"></strong><div class="row-actions"><a id="openWebsiteButton" class="outline-button" target="_blank" rel="noopener noreferrer"><span data-icon="external"></span>打开</a><button id="copyUrlButton" class="outline-button" type="button"><span data-icon="copy"></span>复制</button></div></div>
+              </section>
+
+              <section class="detail-section notes-section"><h3>私密备注</h3><p id="detailNotes"></p></section>
+              <section class="detail-section history-section"><h3>项目记录</h3><p id="detailHistory"></p></section>
+              <div class="detail-actions"><button id="detailEditButton" class="outline-button" type="button"><span data-icon="note"></span>编辑</button><button id="detailDeleteButton" class="outline-button danger-outline" type="button"><span data-icon="trash"></span>删除</button></div>
+            </div>
+          </aside>
         </div>
       </section>
-      <button id="sidebarBackdrop" class="sidebar-backdrop" aria-label="关闭菜单"></button>
     </main>
 
     <dialog id="itemDialog" class="modal">
@@ -200,18 +202,6 @@
       <div class="modal-footer">
         <button class="ghost-button" type="button" data-close-dialog="deleteDialog">取消</button>
         <button id="confirmDeleteButton" class="danger-button" type="button">确认删除</button>
-      </div>
-    </dialog>
-
-    <dialog id="detailDialog" class="modal detail-modal">
-      <div class="modal-header">
-        <div><p id="detailType" class="eyebrow">账户密码</p><h2 id="detailTitle"></h2></div>
-        <button class="icon-button close-button" type="button" data-close-dialog="detailDialog" aria-label="关闭"><span data-icon="close"></span></button>
-      </div>
-      <div id="detailBody"></div>
-      <div class="modal-footer split-footer">
-        <button id="detailDeleteButton" class="text-danger-button" type="button"><span data-icon="trash"></span>删除</button>
-        <button id="detailEditButton" class="primary-button" type="button">编辑项目</button>
       </div>
     </dialog>
 

@@ -1,0 +1,7 @@
+name = "password-manager"
+pages_build_output_dir = "."
+compatibility_date = "2026-08-16"
+
+[[r2_buckets]]
+binding = "VAULT_BUCKET"
+bucket_name = "password-manager"
