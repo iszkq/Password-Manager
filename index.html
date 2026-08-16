@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#07110f" />
+    <meta name="description" content="一个轻量、仅在浏览器本地解密的加密密码与备忘录保险箱。" />
+    <title>隐匣 · 私密保险箱</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <main id="authView" class="auth-view">
+      <section class="auth-card" aria-labelledby="authTitle">
+        <div class="brand brand-large">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M8 10V7a4 4 0 0 1 8 0v3m-9 0h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"/><path d="M12 14v3"/></svg>
+          </div>
+          <div>
+            <span class="brand-name">隐匣</span>
+            <span class="brand-tagline">PRIVATE VAULT</span>
+          </div>
+        </div>
+
+        <div id="unlockPanel">
+          <div class="auth-heading">
+            <p class="eyebrow">欢迎回来</p>
+            <h1 id="authTitle">解锁你的保险箱</h1>
+            <p>主密码只在这台设备中用于解密，永远不会上传。</p>
+          </div>
+          <form id="unlockForm" novalidate>
+            <label class="field-label" for="unlockPassword">主密码</label>
+            <div class="password-input">
+              <input id="unlockPassword" type="password" autocomplete="current-password" placeholder="输入主密码" required autofocus />
+              <button class="icon-button password-toggle" type="button" data-toggle-password="unlockPassword" aria-label="显示密码"></button>
+            </div>
+            <p id="unlockError" class="form-error" role="alert"></p>
+            <button id="unlockButton" class="primary-button full-button" type="submit">
+              <span>解锁保险箱</span>
+              <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </form>
+          <div class="auth-footnote">
+            <svg viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.8 8 10 4.6-1.2 8-5 8-10V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>AES-256-GCM 本地加密</span>
+          </div>
+        </div>
+
+        <div id="setupPanel" hidden>
+          <div class="auth-heading">
+            <p class="eyebrow">初次使用</p>
+            <h1>创建你的保险箱</h1>
+            <p>设置一个不少于 12 位且容易记住的主密码。忘记后将无法找回。</p>
+          </div>
+          <form id="setupForm" novalidate>
+            <label class="field-label" for="setupPassword">主密码</label>
+            <div class="password-input">
+              <input id="setupPassword" type="password" autocomplete="new-password" placeholder="至少 12 位" required />
+              <button class="icon-button password-toggle" type="button" data-toggle-password="setupPassword" aria-label="显示密码"></button>
+            </div>
+            <div class="strength-track"><span id="strengthBar"></span></div>
+            <p id="strengthText" class="field-hint">建议使用多个不相关词语组成的长密码</p>
+            <label class="field-label top-gap" for="confirmPassword">确认主密码</label>
+            <div class="password-input">
+              <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入" required />
+              <button class="icon-button password-toggle" type="button" data-toggle-password="confirmPassword" aria-label="显示密码"></button>
+            </div>
+            <p id="setupError" class="form-error" role="alert"></p>
+            <button id="setupButton" class="primary-button full-button" type="submit">创建并进入</button>
+          </form>
+        </div>
+      </section>
+      <p class="auth-copyright">你的秘密，只属于你。</p>
+    </main>
+
+    <main id="appView" class="app-view" hidden>
+      <aside class="sidebar">
+        <div class="brand sidebar-brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M8 10V7a4 4 0 0 1 8 0v3m-9 0h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"/><path d="M12 14v3"/></svg>
+          </div>
+          <div>
+            <span class="brand-name">隐匣</span>
+            <span class="brand-tagline">PRIVATE VAULT</span>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="保险箱分类">
+          <button class="nav-item active" data-filter="all">
+            <span class="nav-icon" data-icon="grid"></span>
+            <span>全部项目</span>
+            <span id="allCount" class="nav-count">0</span>
+          </button>
+          <button class="nav-item" data-filter="account">
+            <span class="nav-icon" data-icon="key"></span>
+            <span>账户密码</span>
+            <span id="accountCount" class="nav-count">0</span>
+          </button>
+          <button class="nav-item" data-filter="note">
+            <span class="nav-icon" data-icon="note"></span>
+            <span>私密备忘</span>
+            <span id="noteCount" class="nav-count">0</span>
+          </button>
+          <button class="nav-item" data-filter="favorite">
+            <span class="nav-icon" data-icon="star"></span>
+            <span>星标收藏</span>
+            <span id="favoriteCount" class="nav-count">0</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <button id="backupButton" class="sidebar-action"><span data-icon="download"></span>导出加密备份</button>
+          <button id="importButton" class="sidebar-action"><span data-icon="upload"></span>导入备份</button>
+          <input id="importInput" type="file" accept="application/json,.json" hidden />
+          <button id="lockButton" class="sidebar-action"><span data-icon="lock"></span>立即锁定</button>
+          <div class="security-status"><span></span><div><strong>保险箱已加密</strong><small>5 分钟无操作自动锁定</small></div></div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <button id="menuButton" class="icon-button menu-button" aria-label="打开菜单"><span data-icon="menu"></span></button>
+          <div class="search-wrap">
+            <span data-icon="search"></span>
+            <input id="searchInput" type="search" placeholder="搜索账户、网址或备忘录…" autocomplete="off" />
+            <kbd>⌘ K</kbd>
+          </div>
+          <button id="addButton" class="primary-button add-button"><span data-icon="plus"></span>新建项目</button>
+        </header>
+
+        <div class="content">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">我的保险箱</p>
+              <h1 id="listTitle">全部项目</h1>
+              <p id="listSubtitle">集中管理你的账户与私密信息</p>
+            </div>
+            <div class="view-controls" role="group" aria-label="视图切换">
+              <button class="icon-button active" data-view="grid" aria-label="网格视图"><span data-icon="grid"></span></button>
+              <button class="icon-button" data-view="list" aria-label="列表视图"><span data-icon="list"></span></button>
+            </div>
+          </div>
+
+          <div id="itemGrid" class="item-grid"></div>
+          <section id="emptyState" class="empty-state" hidden>
+            <div class="empty-icon"><span data-icon="key"></span></div>
+            <h2>保险箱还是空的</h2>
+            <p>添加第一个账户或备忘录，它会立即在本地加密保存。</p>
+            <button id="emptyAddButton" class="secondary-button"><span data-icon="plus"></span>添加项目</button>
+          </section>
+        </div>
+      </section>
+      <button id="sidebarBackdrop" class="sidebar-backdrop" aria-label="关闭菜单"></button>
+    </main>
+
+    <dialog id="itemDialog" class="modal">
+      <form id="itemForm" method="dialog" novalidate>
+        <div class="modal-header">
+          <div><p class="eyebrow">加密项目</p><h2 id="itemDialogTitle">新建项目</h2></div>
+          <button class="icon-button close-button" type="button" data-close-dialog="itemDialog" aria-label="关闭"><span data-icon="close"></span></button>
+        </div>
+        <div class="type-switch">
+          <button type="button" class="active" data-type="account"><span data-icon="key"></span>账户密码</button>
+          <button type="button" data-type="note"><span data-icon="note"></span>私密备忘</button>
+        </div>
+        <input id="itemId" type="hidden" />
+        <input id="itemType" type="hidden" value="account" />
+        <label class="field-label" for="itemTitle">名称 <span>*</span></label>
+        <input id="itemTitle" class="text-input" type="text" maxlength="80" placeholder="例如：GitHub" required />
+        <div id="accountFields">
+          <label class="field-label" for="itemUrl">网址</label>
+          <input id="itemUrl" class="text-input" type="url" maxlength="500" placeholder="https://example.com" />
+          <label class="field-label" for="itemUsername">用户名 / 邮箱</label>
+          <input id="itemUsername" class="text-input" type="text" maxlength="200" autocomplete="off" placeholder="name@example.com" />
+          <label class="field-label" for="itemPassword">密码</label>
+          <div class="password-input">
+            <input id="itemPassword" type="password" maxlength="500" autocomplete="new-password" placeholder="输入或生成强密码" />
+            <button class="icon-button password-toggle" type="button" data-toggle-password="itemPassword" aria-label="显示密码"></button>
+            <button id="generateButton" class="generate-button" type="button">生成</button>
+          </div>
+        </div>
+        <label class="field-label" for="itemNotes">备注</label>
+        <textarea id="itemNotes" class="text-input" rows="5" maxlength="10000" placeholder="记录恢复码、提示或任何私密信息…"></textarea>
+        <label class="favorite-check"><input id="itemFavorite" type="checkbox" /><span data-icon="star"></span>加入星标收藏</label>
+        <p id="itemError" class="form-error" role="alert"></p>
+        <div class="modal-footer">
+          <button class="ghost-button" type="button" data-close-dialog="itemDialog">取消</button>
+          <button class="primary-button" type="submit">加密保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="deleteDialog" class="modal confirm-modal">
+      <div class="danger-icon"><span data-icon="trash"></span></div>
+      <h2>删除这个项目？</h2>
+      <p>删除后会立即更新加密保险箱，此操作无法撤销。</p>
+      <div class="modal-footer">
+        <button class="ghost-button" type="button" data-close-dialog="deleteDialog">取消</button>
+        <button id="confirmDeleteButton" class="danger-button" type="button">确认删除</button>
+      </div>
+    </dialog>
+
+    <dialog id="detailDialog" class="modal detail-modal">
+      <div class="modal-header">
+        <div><p id="detailType" class="eyebrow">账户密码</p><h2 id="detailTitle"></h2></div>
+        <button class="icon-button close-button" type="button" data-close-dialog="detailDialog" aria-label="关闭"><span data-icon="close"></span></button>
+      </div>
+      <div id="detailBody"></div>
+      <div class="modal-footer split-footer">
+        <button id="detailDeleteButton" class="text-danger-button" type="button"><span data-icon="trash"></span>删除</button>
+        <button id="detailEditButton" class="primary-button" type="button">编辑项目</button>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"><span data-icon="check"></span><span id="toastText"></span></div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
